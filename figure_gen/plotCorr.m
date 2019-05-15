@@ -3,12 +3,16 @@ function [varargout] = plotCorr(data,varargin)
 % create a correlation plot in the standard decathlon format
 
 % parse inputs
-fs = 7;
+fs = 6;
 cluster = true;
 save_path = '';
 plot_title = '';
 signed = true;
 ext = {'.fig'};
+alpha = 0.01;
+corr_type = 'spearman';
+pval_patch = true;
+parent = [];
 for i=1:length(varargin)
     
     arg = varargin{i};
@@ -35,12 +39,21 @@ for i=1:length(varargin)
         case 'Ext'
             i=i+1;
             ext = varargin{i};
+        case 'Parent'
+            i=i+1;
+            parent = varargin{i};
+        case 'Patch'
+            i=i+1;
+            pval_patch = varargin{i};
+        case 'Type'
+            i = i+1;
+            corr_type = varargin{i};
     end
     end
 end
 
 % calculate covariance matrix
-[r,p] = corrcoef(data,'rows','pairwise');
+[r,p] = corr(data,'Type',corr_type,'rows','pairwise');
 
 % replace NaNs
 r(isnan(r))=0;
@@ -58,24 +71,31 @@ if cluster
 end
 
 % plot correlation matrix
-fh1 = figure;
+if ~isempty(parent)
+    ah1 = parent(1); 
+    fh1 = ah1.Parent;
+else
+    fh1 = figure;
+    ah1 = axes;
+end
 if signed
-    imh = imagesc(r);
+    imh = imagesc(r,'Parent',ah1);
     egoalley=interp1([1 47 128 129 169 256],...
         [0 1 1; 0 .2 1; 0 0 0; 0 0 0 ; 1 .1 0; 1 1 0],1:256);
-    colormap(egoalley);
-    colorbar
-    caxis([-1,1]);
+    egoalley=interp1([1 52 128 129 164 225 256],[0 1 1; 0 .2 1;...
+        0 .0392 .1961; .1639 .0164 0 ; 1 .1 0; 1 .9 0; 1 1 1],1:256);
+    caxis(ah1,[-1,1]);
 else
-    imh = imagesc(abs(r));
+    imh = imagesc(abs(r),'Parent',ah1);
     egoalley=interp1([0 128 256],...
         [0 0 0 ; 1 .1 0; 1 1 0],1:256);
-    colormap(egoalley);
-    colorbar
-    caxis([0,1]);
+    caxis(ah1,[0,1]);
 end
 
-set(gca,'TickLength',[0 0]);    
+% configure corr mat axes
+colormap(ah1,egoalley);
+colorbar(ah1);
+set(ah1,'TickLength',[0 0]);    
 
 if ~isempty(plot_title)
    title(sprintf('%s (r-vals)',plot_title)); 
@@ -85,15 +105,10 @@ if exist('labels','var')
     clusteredLabels=labels(Zoutperm);
 
     % format field labels for display
-    for i = 1:length(clusteredLabels)
-        tmp = clusteredLabels{i};
-        tmp(tmp=='_')=' ';
-        clusteredLabels(i)={tmp};
-    end
+    clusteredLabels = pretty_labels(clusteredLabels);
     
-    set(gca,'Ytick',1:length(clusteredLabels),'YtickLabel', clusteredLabels,'fontsize',fs);
-    set(gca,'XTick',1:length(labels),'XTickLabel',clusteredLabels,'fontsize',fs,'XTickLabelRotation',45);
-    
+    set(ah1,'Ytick',1:length(clusteredLabels),'YtickLabel', clusteredLabels,'fontsize',fs);
+    set(ah1,'XTick',1:length(labels),'XTickLabel',clusteredLabels,'fontsize',fs,'XTickLabelRotation',90);
 end
 
 if ~isempty(save_path)
@@ -104,15 +119,29 @@ end
 
 %% plot pvalues
 
-fh2 = figure();
-imagesc(p);
-colorbar;
+if pval_patch
+   [row_idx,col_idx] = find(p < alpha);
+   vx = repmat(col_idx',5,1) + repmat(0.5.*[-1 -1 1 1 -1]',1,numel(col_idx));
+   vy = repmat(row_idx',5,1) + repmat(0.5.*[1 -1 -1 1 1]',1,numel(col_idx));
+   patch('XData',vx,'YData',vy,'FaceColor','none','EdgeColor','w',...
+       'LineWidth',0.25,'Parent',ah1);
+end
+
+if numel(parent)>1
+    ah2 = parent(2); 
+    fh2 = ah1.Parent;
+else
+    fh2 = figure;
+    ah2 = axes;
+end
+imagesc(p,'Parent',ah2);
+colorbar(ah2);
 c=[0 1 1];
-logcmap =interp1([1 256*1/3*0.5 256*2/3*0.5 256*0.5 256],...
-    [c./1; c./10; c./100; c./1000; c./10000],1:256);
-colormap(logcmap);
+logcmap =interp1(fliplr(logspace(0,log10(256),5)),...
+    [0 0 0; .25 .25 .25; 0 1 1; 0 0 1; 1 0 1], 1:256);
+colormap(ah2,logcmap);
 set(gca,'Ytick',1:length(clusteredLabels),'YtickLabel', clusteredLabels,'fontsize',fs);
-set(gca,'XTick',1:length(labels),'XTickLabel',clusteredLabels,'fontsize',fs,'XTickLabelRotation',45);
+set(gca,'XTick',1:length(labels),'XTickLabel',clusteredLabels,'fontsize',fs,'XTickLabelRotation',90);
 set(gca,'TickLength',[0 0]);
 
 if ~isempty(plot_title)

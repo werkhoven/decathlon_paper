@@ -1,42 +1,25 @@
 function corrMatPCA(data,labels)
 
-for i = 1:length(labels)
-    tmp = labels{i};
-    tmp(tmp=='_')=' ';
-    labels(i) = {tmp};
-end
+labels = pretty_labels(labels);
 
-
-%% normalize values in the data matrix
-
-mus = NaN(length(labels),1);
-sigma = mus;
-cMat = data;
-
-for i = 1:length(mus)
-    mus(i) = nanmean(data(:,i));
-    sigma(i) = nanstd(data(:,i));
-    cMat(~isnan(data(:,i)),i) = (data(~isnan(data(:,i)),i) - mus(i))./sigma(i);
-end
-
-cMat = fillWithRegressedValues(cMat);
-
-%%
-[coef,sc,lat] = pca(cMat);
+%
+[coef,sc,lat] = pca(data);
 lat = lat./sum(lat);
 
 % bootstrap resample data for PCA
-rawPCA=decathlonpcaresamp(cMat);
+rawPCA=decathlonpcaresamp(data);
 zPlotRaw = sum(rawPCA.zMatrix);
 
 % bootstrap resample shuffled data for PCA null model
 nReps = 15;
 zPlotShuf = NaN(nReps,length(zPlotRaw));
+fprintf('\n')
 for i = 1:nReps
     
-    shufMat = NaN(size(cMat));
-    for k = 1:size(cMat,2)
-        shufMat(:,k) = cMat(randperm(size(cMat,1)),k);
+    fprintf('bootstrap # %i of %i\n',i,nReps)
+    shufMat = NaN(size(data));
+    for k = 1:size(data,2)
+        shufMat(:,k) = data(randperm(size(data,1)),k);
     end
     
     shufPCA=decathlonpcaresamp(shufMat);
@@ -102,7 +85,7 @@ for i = 1:size(D,1)
     for j = 1:size(D,2)
         
         if i~=j
-            D(i,j) = sqrt(sum((cMat(i,:) - cMat(j,:)).^2));
+            D(i,j) = sqrt(sum((data(i,:) - data(j,:)).^2));
         else
             D(i,j) = 0;
         end
